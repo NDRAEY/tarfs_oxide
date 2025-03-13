@@ -1,0 +1,14 @@
+[package]
+name = "tarfs"
+version = "0.1.0"
+edition = "2021"
+authors = ["NDRAEY <pikachu_andrey@vk.com>"]
+license = "MIT"
+description = "Tar reading library, designed for using in embedded systems"
+repository = "https://github.com/NDRAEY/tarfs_oxide"
+
+[features]
+default = ["std"]
+std = []
+
+[dependencies]
