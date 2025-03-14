@@ -224,6 +224,56 @@ impl TarFS {
         Ok(result)
     }
 
+    pub fn list_by_path_shallow(&mut self, path: &str) -> Result<Vec<Entity>, ListError> {
+        let entities = self.list();
+        // Remove trailing slashes
+        let cleaned_path = path.trim_end_matches(|c| c == '/').to_string();
+
+        // Find directories (will always return zero or one element in Vec)
+        let matching_directories: Vec<_> = entities.iter().filter_map(|entry| {
+            let cleaned_name = entry.name.clone().trim_end_matches(|c| c == '/').to_string();
+
+            if entry._type == Type::Dir && cleaned_name == cleaned_path {
+                Some(entry.name.clone())
+            } else {
+                None
+            }
+        }).collect();
+        
+        // Get first element
+        let directory_full_name: Option<&String> = matching_directories.first();
+
+        if directory_full_name.is_none() {
+            return Err(ListError::NotFound);
+        }
+
+        let directory_full_name: &String = directory_full_name.unwrap();
+        let pathlen = directory_full_name.len();
+
+        // If entity name starts with directory name, it's a child in that directory
+        let mut result = entities.iter().filter_map(|entry| {
+            if entry.name.starts_with(directory_full_name) {
+                let remaining = &entry.name[pathlen..].trim_end_matches(|c| c == '/');
+                let slash_count = remaining.chars().filter(|&c| c == '/').count();
+
+                if slash_count == 0 {
+                    Some(entry.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }).collect::<Vec<Entity>>();
+
+        // If there some files in it, remove first entry - it is directory itself.
+        if !result.is_empty() {
+            result.remove(0);
+        }
+
+        Ok(result)
+    }
+
     pub fn find_file(&mut self, path: &str) -> Option<Entity> {
         self.list().into_iter().find(|entry| entry.name == path)
     }
