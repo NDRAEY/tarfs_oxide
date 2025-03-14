@@ -6,6 +6,8 @@ authors = ["NDRAEY <pikachu_andrey@vk.com>"]
 license = "MIT"
 description = "Tar reading library, designed for using in embedded systems"
 repository = "https://github.com/NDRAEY/tarfs_oxide"
+categories = ["filesystem", "no-std"]
+keywords = ["tar", "no_std"]
 
 [features]
 default = ["std"]

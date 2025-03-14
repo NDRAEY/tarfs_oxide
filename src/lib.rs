@@ -1,8 +1,14 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod io;
 use io::Read;
 
-pub mod io;
+extern crate alloc;
+use alloc::vec;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use alloc::string::String;
+use alloc::string::ToString;
 
 pub const TARFS_ELEM_TYPE_FILE: u8 = 48;
 pub const TARFS_ELEM_TYPE_HARD_LINK: u8 = 49;
