@@ -33,11 +33,15 @@ fn main() {
     let fs = TarFS::from_device(FileDevice(File::open(filename).unwrap()));
 
     if fs.is_none() {
-        println!("Failed to mount tar file.");
+        println!("Failed to open TAR file.");
         return;
     }
 
-    let fs = fs.unwrap();
+    let mut fs = fs.unwrap();
+    
+    let ents = fs.list();
 
-    // ...
+    for i in ents {
+        println!("{:40} - {:12} bytes", &i.name, i.size);
+    }
 }
