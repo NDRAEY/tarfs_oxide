@@ -9,6 +9,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use alloc::string::String;
 use alloc::string::ToString;
+use core::mem::size_of;
 
 pub const TARFS_ELEM_TYPE_FILE: u8 = 48;
 pub const TARFS_ELEM_TYPE_HARD_LINK: u8 = 49;
