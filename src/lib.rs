@@ -96,6 +96,10 @@ impl TarFS {
 
         device.read(0, read_size, raw_header.as_mut_slice());
 
+        if &raw_header.signature[..5] != MAGIC {
+            return None;
+        }
+
         Some(TarFS {
             device: Box::new(device),
         })
