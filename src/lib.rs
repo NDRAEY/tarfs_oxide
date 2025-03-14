@@ -122,14 +122,14 @@ impl TarFS {
 
             let size_str: String = String::from_utf8_lossy(&raw_header.size).into_owned();
             let mut size_str = size_str
-                .trim_end_matches(|c| c == '\0')
-                .trim_start_matches(|c| c == '0');
+                .trim_end_matches('\0')
+                .trim_start_matches('0');
 
-            if size_str.len() == 0 {
+            if size_str.is_empty() {
                 size_str = "0";
             }
 
-            let mut size = usize::from_str_radix(&size_str, 8).unwrap();
+            let mut size = usize::from_str_radix(size_str, 8).unwrap();
 
             // File content always aligned by 512 bytes
             if size % 512 != 0 {
@@ -163,22 +163,22 @@ impl TarFS {
 
         for (position, i) in raw_entries {
             let name = String::from_utf8_lossy(&i.name).into_owned();
-            let name = name.trim_end_matches(|c| c == '\0').to_string();
+            let name = name.trim_end_matches('\0').to_string();
 
             let size_str: String = String::from_utf8_lossy(&i.size).into_owned();
             
             // Trim zeroes and zero-chars
             let mut size_str = size_str
-                .trim_end_matches(|c| c == '\0')
-                .trim_start_matches(|c| c == '0');
+                .trim_end_matches('\0')
+                .trim_start_matches('0');
 
             // If nothing remained, set to 0
-            if size_str.len() == 0 {
+            if size_str.is_empty() {
                 size_str = "0";
             }
             
             // From octal string to usize
-            let size = usize::from_str_radix(&size_str, 8).unwrap();
+            let size = usize::from_str_radix(size_str, 8).unwrap();
 
             entities.push(Entity { size, name, _type: Self::raw_to_type(i._type).unwrap(), position });
         }
@@ -189,11 +189,11 @@ impl TarFS {
     pub fn list_by_path(&mut self, path: &str) -> Result<Vec<Entity>, ListError> {
         let entities = self.list();
         // Remove trailing slashes
-        let cleaned_path = path.trim_end_matches(|c| c == '/').to_string();
+        let cleaned_path = path.trim_end_matches('/').to_string();
 
         // Find directories (will always return zero or one element in Vec)
         let matching_directories: Vec<_> = entities.iter().filter_map(|entry| {
-            let cleaned_name = entry.name.clone().trim_end_matches(|c| c == '/').to_string();
+            let cleaned_name = entry.name.clone().trim_end_matches('/').to_string();
 
             if entry._type == Type::Dir && cleaned_name == cleaned_path {
                 Some(entry.name.clone())
@@ -231,11 +231,11 @@ impl TarFS {
     pub fn list_by_path_shallow(&mut self, path: &str) -> Result<Vec<Entity>, ListError> {
         let entities = self.list();
         // Remove trailing slashes
-        let cleaned_path = path.trim_end_matches(|c| c == '/').to_string();
+        let cleaned_path = path.trim_end_matches('/').to_string();
 
         // Find directories (will always return zero or one element in Vec)
         let matching_directories: Vec<_> = entities.iter().filter_map(|entry| {
-            let cleaned_name = entry.name.clone().trim_end_matches(|c| c == '/').to_string();
+            let cleaned_name = entry.name.clone().trim_end_matches('/').to_string();
 
             if entry._type == Type::Dir && cleaned_name == cleaned_path {
                 Some(entry.name.clone())
@@ -257,7 +257,7 @@ impl TarFS {
         // If entity name starts with directory name, it's a child in that directory
         let mut result = entities.iter().filter_map(|entry| {
             if entry.name.starts_with(directory_full_name) {
-                let remaining = &entry.name[pathlen..].trim_end_matches(|c| c == '/');
+                let remaining = &entry.name[pathlen..].trim_end_matches('/');
                 let slash_count = remaining.chars().filter(|&c| c == '/').count();
 
                 if slash_count == 0 {
