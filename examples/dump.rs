@@ -1,8 +1,4 @@
-use no_std_io::{self, io::{Error, ErrorKind, Result}};
-use std::{
-    fs::File,
-    io::{Read, Seek, SeekFrom},
-};
+use std::fs::File;
 use tarfs::{file_device::FileDevice, TarFS};
 
 fn main() {
