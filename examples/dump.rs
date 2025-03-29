@@ -1,24 +1,9 @@
-use std::{fs::File, io::{Read, Seek, SeekFrom}};
-
-use tarfs::TarFS;
-
-struct FileDevice(File);
-
-impl tarfs::io::Read for FileDevice {
-    fn read(&mut self, position: usize, size: usize, buffer: &mut [u8]) -> Option<()> {
-        // println!("Seek and read: 0x{:x}", position);
-
-        if self.0.seek(SeekFrom::Start(position as u64)).is_err() {
-            return None;
-        }
-
-        if self.0.read_exact(&mut buffer[..size]).is_ok() {
-            Some(())
-        } else {
-            None
-        }
-    }
-}
+use no_std_io::{self, io::{Error, ErrorKind, Result}};
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+};
+use tarfs::{file_device::FileDevice, TarFS};
 
 fn main() {
     let args = std::env::args();
@@ -38,8 +23,8 @@ fn main() {
     }
 
     let mut fs = fs.unwrap();
-    
-    let ents = fs.list();
+
+    let ents = fs.list().unwrap();
 
     for i in ents {
         println!("{:40} - {:12} bytes", &i.name, i.size);

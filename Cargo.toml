@@ -1,6 +1,6 @@
 [package]
 name = "tarfs"
-version = "0.1.3"
+version = "0.2.0"
 edition = "2021"
 authors = ["NDRAEY <pikachu_andrey@vk.com>"]
 license = "MIT"
@@ -10,7 +10,9 @@ categories = ["filesystem", "no-std"]
 keywords = ["tar", "no_std"]
 
 [features]
-default = ["std"]
+default = ["std", "builtin_devices"]
 std = []
+builtin_devices = []
 
 [dependencies]
+no_std_io = { version = "0.6.0", features = ["alloc"] }

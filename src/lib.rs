@@ -1,15 +1,18 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod io;
-use io::Read;
+use no_std_io::io;
 
 extern crate alloc;
-use alloc::vec;
 use alloc::boxed::Box;
-use alloc::vec::Vec;
 use alloc::string::String;
 use alloc::string::ToString;
+use alloc::vec;
+use alloc::vec::Vec;
 use core::mem::size_of;
+use no_std_io::io::SeekFrom;
+
+#[cfg(feature = "builtin_devices")]
+pub mod file_device;
 
 pub const TARFS_ELEM_TYPE_FILE: u8 = 48;
 pub const TARFS_ELEM_TYPE_HARD_LINK: u8 = 49;
@@ -60,17 +63,12 @@ pub enum Type {
     Dir,
 }
 
-#[derive(Debug)]
-pub enum ListError {
-    NotFound
-}
-
 #[derive(Debug, Clone)]
 pub struct Entity {
     pub name: String,
     pub size: usize,
     pub _type: Type,
-    pub position: usize
+    pub position: usize,
 }
 
 impl RawEntity {
@@ -85,16 +83,22 @@ impl RawEntity {
     }
 }
 
+pub trait Device: io::Read + io::Seek {}
+
 pub struct TarFS {
-    device: Box<dyn Read>,
+    device: Box<dyn Device>,
 }
 
 impl TarFS {
-    pub fn from_device(mut device: impl Read + 'static) -> Option<TarFS> {
+    pub fn from_device(mut device: impl Device + 'static) -> Option<TarFS> {
         let mut raw_header = unsafe { core::mem::zeroed::<RawEntity>() };
-        let read_size = size_of::<RawEntity>();
+        //let read_size = size_of::<RawEntity>();
 
-        device.read(0, read_size, raw_header.as_mut_slice());
+        let result = device.read(raw_header.as_mut_slice());
+
+        if result.is_err() {
+            return None;
+        }
 
         if &raw_header.signature[..5] != MAGIC {
             return None;
@@ -105,7 +109,7 @@ impl TarFS {
         })
     }
 
-    pub fn get_entries(&mut self) -> Vec<(usize, RawEntity)> {
+    pub fn get_entries(&mut self) -> io::Result<Vec<(usize, RawEntity)>> {
         let mut entries = vec![];
         let mut position: usize = 0;
 
@@ -113,8 +117,8 @@ impl TarFS {
             let mut raw_header = unsafe { core::mem::zeroed::<RawEntity>() };
             let read_size = size_of::<RawEntity>();
 
-            self.device
-                .read(position, read_size, raw_header.as_mut_slice());
+            self.device.seek(SeekFrom::Start(position as _))?;
+            self.device.read(raw_header.as_mut_slice())?;
 
             if &raw_header.signature[..5] != MAGIC {
                 break;
@@ -142,7 +146,7 @@ impl TarFS {
             position += size + 512;
         }
 
-        entries
+        Ok(entries)
     }
 
     fn raw_to_type(_type: u8) -> Option<Type> {
@@ -153,12 +157,12 @@ impl TarFS {
             TARFS_ELEM_TYPE_CHR_DEV => Some(Type::ChrDev),
             TARFS_ELEM_TYPE_BLK_DEV => Some(Type::BlkDev),
             TARFS_ELEM_TYPE_DIR => Some(Type::Dir),
-            _ => None
+            _ => None,
         }
     }
 
-    pub fn list(&mut self) -> Vec<Entity> {
-        let raw_entries = self.get_entries();
+    pub fn list(&mut self) -> io::Result<Vec<Entity>> {
+        let raw_entries = self.get_entries()?;
         let mut entities: Vec<Entity> = vec![];
 
         for (position, i) in raw_entries {
@@ -166,7 +170,7 @@ impl TarFS {
             let name = name.trim_end_matches(|c| c == '\0').to_string();
 
             let size_str: String = String::from_utf8_lossy(&i.size).into_owned();
-            
+
             // Trim zeroes and zero-chars
             let mut size_str = size_str
                 .trim_end_matches(|c| c == '\0')
@@ -176,49 +180,67 @@ impl TarFS {
             if size_str.len() == 0 {
                 size_str = "0";
             }
-            
+
             // From octal string to usize
             let size = usize::from_str_radix(&size_str, 8).unwrap();
 
-            entities.push(Entity { size, name, _type: Self::raw_to_type(i._type).unwrap(), position });
+            entities.push(Entity {
+                size,
+                name,
+                _type: Self::raw_to_type(i._type).unwrap(),
+                position,
+            });
         }
 
-        entities
+        Ok(entities)
     }
 
-    pub fn list_by_path(&mut self, path: &str) -> Result<Vec<Entity>, ListError> {
-        let entities = self.list();
+    pub fn list_by_path(&mut self, path: &str) -> io::Result<Vec<Entity>> {
+        let entities = self.list()?;
         // Remove trailing slashes
         let cleaned_path = path.trim_end_matches(|c| c == '/').to_string();
 
         // Find directories (will always return zero or one element in Vec)
-        let matching_directories: Vec<_> = entities.iter().filter_map(|entry| {
-            let cleaned_name = entry.name.clone().trim_end_matches(|c| c == '/').to_string();
+        let matching_directories: Vec<_> = entities
+            .iter()
+            .filter_map(|entry| {
+                let cleaned_name = entry
+                    .name
+                    .clone()
+                    .trim_end_matches(|c| c == '/')
+                    .to_string();
 
-            if entry._type == Type::Dir && cleaned_name == cleaned_path {
-                Some(entry.name.clone())
-            } else {
-                None
-            }
-        }).collect();
-        
+                if entry._type == Type::Dir && cleaned_name == cleaned_path {
+                    Some(entry.name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         // Get first element
         let directory_full_name: Option<&String> = matching_directories.first();
 
         if directory_full_name.is_none() {
-            return Err(ListError::NotFound);
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "Directory not found",
+            ));
         }
 
         let directory_full_name: &String = directory_full_name.unwrap();
 
         // If entity name starts with directory name, it's a child in that directory
-        let mut result = entities.iter().filter_map(|entry| {
-            if entry.name.starts_with(directory_full_name) {
-                Some(entry.clone())
-            } else {
-                None
-            }
-        }).collect::<Vec<Entity>>();
+        let mut result = entities
+            .iter()
+            .filter_map(|entry| {
+                if entry.name.starts_with(directory_full_name) {
+                    Some(entry.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<Entity>>();
 
         // If there some files in it, remove first entry - it is directory itself.
         if !result.is_empty() {
@@ -228,47 +250,60 @@ impl TarFS {
         Ok(result)
     }
 
-    pub fn list_by_path_shallow(&mut self, path: &str) -> Result<Vec<Entity>, ListError> {
-        let entities = self.list();
+    pub fn list_by_path_shallow(&mut self, path: &str) -> io::Result<Vec<Entity>> {
+        let entities = self.list()?;
         // Remove trailing slashes
         let cleaned_path = path.trim_end_matches(|c| c == '/').to_string();
 
         // Find directories (will always return zero or one element in Vec)
-        let matching_directories: Vec<_> = entities.iter().filter_map(|entry| {
-            let cleaned_name = entry.name.clone().trim_end_matches(|c| c == '/').to_string();
+        let matching_directories: Vec<_> = entities
+            .iter()
+            .filter_map(|entry| {
+                let cleaned_name = entry
+                    .name
+                    .clone()
+                    .trim_end_matches(|c| c == '/')
+                    .to_string();
 
-            if entry._type == Type::Dir && cleaned_name == cleaned_path {
-                Some(entry.name.clone())
-            } else {
-                None
-            }
-        }).collect();
-        
+                if entry._type == Type::Dir && cleaned_name == cleaned_path {
+                    Some(entry.name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         // Get first element
         let directory_full_name: Option<&String> = matching_directories.first();
 
         if directory_full_name.is_none() {
-            return Err(ListError::NotFound);
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "Directory not found",
+            ));
         }
 
         let directory_full_name: &String = directory_full_name.unwrap();
         let pathlen = directory_full_name.len();
 
         // If entity name starts with directory name, it's a child in that directory
-        let mut result = entities.iter().filter_map(|entry| {
-            if entry.name.starts_with(directory_full_name) {
-                let remaining = &entry.name[pathlen..].trim_end_matches(|c| c == '/');
-                let slash_count = remaining.chars().filter(|&c| c == '/').count();
+        let mut result = entities
+            .iter()
+            .filter_map(|entry| {
+                if entry.name.starts_with(directory_full_name) {
+                    let remaining = &entry.name[pathlen..].trim_end_matches(|c| c == '/');
+                    let slash_count = remaining.chars().filter(|&c| c == '/').count();
 
-                if slash_count == 0 {
-                    Some(entry.clone())
+                    if slash_count == 0 {
+                        Some(entry.clone())
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
-            } else {
-                None
-            }
-        }).collect::<Vec<Entity>>();
+            })
+            .collect::<Vec<Entity>>();
 
         // If there some files in it, remove first entry - it is directory itself.
         if !result.is_empty() {
@@ -278,39 +313,59 @@ impl TarFS {
         Ok(result)
     }
 
-    pub fn find_file(&mut self, path: &str) -> Option<Entity> {
-        self.list().into_iter().find(|entry| entry.name == path)
+    pub fn find_file(&mut self, path: &str) -> io::Result<Entity> {
+        match self.list()?.into_iter().find(|entry| entry.name == path) {
+            Some(ent) => Ok(ent),
+            None => Err(io::Error::new(io::ErrorKind::NotFound, "File not found")),
+        }
     }
 
-    pub fn read_file_by_entity(&mut self, entity: &Entity, position: usize, mut size: usize, output: &mut [u8]) -> usize {
+    pub fn read_file_by_entity(
+        &mut self,
+        entity: &Entity,
+        position: usize,
+        mut size: usize,
+        output: &mut [u8],
+    ) -> io::Result<usize> {
         let end_position = position + size;
 
         if end_position > entity.size {
             size = end_position - position;
         }
 
-        self.device.read(entity.position + 512 + position, size, output);
-
-        size
+        self.device.seek(io::SeekFrom::Start(
+            (entity.position + 512 + position) as u64,
+        ))?;
+        self.device.read(&mut output[..size])
     }
 
-    pub fn read_file(&mut self, path: &str, position: usize, size: usize, output: &mut [u8]) -> Option<usize> {
+    pub fn read_file(
+        &mut self,
+        path: &str,
+        position: usize,
+        size: usize,
+        output: &mut [u8],
+    ) -> io::Result<usize> {
         let entity = self.find_file(path)?;
 
-        Some(self.read_file_by_entity(&entity, position, size, output))
+        self.read_file_by_entity(&entity, position, size, output)
     }
 
-    pub fn read_entire_file(&mut self, path: &str) -> Option<Vec<u8>> {
+    pub fn read_entire_file(&mut self, path: &str) -> io::Result<Vec<u8>> {
         let entity = self.find_file(path)?;
 
         let mut output = vec![0u8; entity.size];
 
-        self.read_file_by_entity(&entity, 0, entity.size, &mut output);
+        let result = self.read_file_by_entity(&entity, 0, entity.size, &mut output);
 
-        Some(output)
+        match result {
+            Ok(_) => Ok(output),
+            Err(e) => Err(e),
+        }
     }
 
-    pub fn read_to_string(&mut self, path: &str) -> Option<String> {
-        self.read_entire_file(path).map(|v| String::from_utf8_lossy(&v).into_owned())
+    pub fn read_to_string(&mut self, path: &str) -> io::Result<String> {
+        self.read_entire_file(path)
+            .map(|v| String::from_utf8_lossy(&v).into_owned())
     }
 }
