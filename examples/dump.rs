@@ -21,7 +21,7 @@ fn main() {
     let mut fs = fs.unwrap();
 
     let ents = fs.list().unwrap();
-
+    
     for i in ents {
         println!("{:40} - {:12} bytes", &i.name, i.size);
     }
