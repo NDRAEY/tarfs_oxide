@@ -50,7 +50,7 @@ Read binary file:
 ```rust
     let mut data = vec![0; 32];
 
-    fs.read_file("/ScientificData.bin", /* position */ 0, /* size */ 32, &mut data)?;
+    fs.read_file("/ScientificData.bin", /* position */ 0, &mut data)?;
 ```
 
 Read API reference on [docs.rs](https://docs.rs/tarfs/latest/tarfs/).
