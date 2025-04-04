@@ -115,7 +115,6 @@ impl TarFS {
 
         loop {
             let mut raw_header = unsafe { core::mem::zeroed::<RawEntity>() };
-            let read_size = size_of::<RawEntity>();
 
             self.device.seek(SeekFrom::Start(position as _))?;
             self.device.read(raw_header.as_mut_slice())?;
@@ -343,12 +342,11 @@ impl TarFS {
         &mut self,
         path: &str,
         position: usize,
-        size: usize,
         output: &mut [u8],
     ) -> io::Result<usize> {
         let entity = self.find_file(path)?;
 
-        self.read_file_by_entity(&entity, position, size, output)
+        self.read_file_by_entity(&entity, position, output.len(), output)
     }
 
     pub fn read_entire_file(&mut self, path: &str) -> io::Result<Vec<u8>> {
