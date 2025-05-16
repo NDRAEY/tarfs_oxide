@@ -73,12 +73,12 @@ pub struct Entity {
 
 impl RawEntity {
     /// Helper function that exposes ISO header as an array off bytes
-    pub fn as_slice(&mut self) -> &[u8] {
+    pub const fn as_slice(&mut self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, size_of::<Self>()) }
     }
 
     /// Helper function that exposes ISO header as a mutable array off bytes
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+    pub const fn as_mut_slice(&mut self) -> &mut [u8] {
         unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, size_of::<Self>()) }
     }
 }
@@ -115,7 +115,7 @@ impl TarFS {
 
         loop {
             let mut raw_header = unsafe { core::mem::zeroed::<RawEntity>() };
-            let read_size = size_of::<RawEntity>();
+            //let read_size = size_of::<RawEntity>();
 
             self.device.seek(SeekFrom::Start(position as _))?;
             self.device.read(raw_header.as_mut_slice())?;
@@ -149,7 +149,7 @@ impl TarFS {
         Ok(entries)
     }
 
-    fn raw_to_type(_type: u8) -> Option<Type> {
+    const fn raw_to_type(_type: u8) -> Option<Type> {
         match _type {
             TARFS_ELEM_TYPE_FILE => Some(Type::File),
             TARFS_ELEM_TYPE_HARD_LINK => Some(Type::HardLink),
