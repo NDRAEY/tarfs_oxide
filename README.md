@@ -25,32 +25,32 @@ cargo add tarfs
 Here's a simple example to list all entries in archive:
 
 ```rust
-    let fs = TarFS::from_device(FileDevice(File::open("archive.tar").unwrap()));
+let fs = TarFS::from_device(FileDevice(File::open("archive.tar").unwrap()));
 
-    if fs.is_none() {
-        println!("Failed to open TAR file.");
-        return;
-    }
+if fs.is_none() {
+    println!("Failed to open TAR file.");
+    return;
+}
 
-    let mut fs = fs.unwrap();
+let mut fs = fs.unwrap();
 
-    let entries = fs.list().unwrap();
+let entries = fs.list().unwrap();
 
-    for i in entries {
-        println!("Entry `{}`; Size: `{}`", &i.name, i.size);
-    }
+for i in entries {
+    println!("Entry `{}`; Size: `{}`", &i.name, i.size);
+}
 ```
 
 Read text file to string:
 ```rust
-    let lore: String = fs.read_to_string("/Ninjago Lore.txt")?;
+let lore: String = fs.read_to_string("/Ninjago Lore.txt")?;
 ```
 
 Read binary file:
 ```rust
-    let mut data = vec![0; 32];
+let mut data = vec![0; 32];
 
-    fs.read_file("/ScientificData.bin", /* position */ 0, /* size */ 32, &mut data)?;
+fs.read_file("/ScientificData.bin", /* position */ 0, &mut data)?;
 ```
 
 Read API reference on [docs.rs](https://docs.rs/tarfs/latest/tarfs/).
