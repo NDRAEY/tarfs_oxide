@@ -2,14 +2,13 @@ use std::fs::File;
 use tarfs::{file_device::FileDevice, TarFS};
 
 fn main() {
-    let args = std::env::args();
-
-    if args.len() <= 1 {
-        eprintln!("Please provide the name of a file.");
-        std::process::exit(1);
-    }
-
-    let filename = args.last().unwrap();
+    let filename = match std::env::args().skip(1).next() {
+        Some(f) => f,
+        None => {
+            eprintln!("Please provide the name of a file.");
+            std::process::exit(1);    
+        },
+    };
 
     let fs = TarFS::from_device(FileDevice(File::open(filename).unwrap()));
 

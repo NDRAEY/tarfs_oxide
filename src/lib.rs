@@ -124,9 +124,7 @@ impl TarFS {
             }
 
             let size_str: String = String::from_utf8_lossy(&raw_header.size).into_owned();
-            let mut size_str = size_str
-                .trim_end_matches('\0')
-                .trim_start_matches('0');
+            let mut size_str = size_str.trim_end_matches('\0').trim_start_matches('0');
 
             if size_str.is_empty() {
                 size_str = "0";
@@ -165,23 +163,21 @@ impl TarFS {
         let mut entities: Vec<Entity> = vec![];
 
         for (position, i) in raw_entries {
-            let name = String::from_utf8_lossy(&i.name).into_owned();
-            let name = name.trim_end_matches('\0').to_string();
-
-            let size_str: String = String::from_utf8_lossy(&i.size).into_owned();
-
-            // Trim zeroes and zero-chars
-            let mut size_str = size_str
+            let name = String::from_utf8_lossy(&i.name)
                 .trim_end_matches('\0')
+                .to_string();
+
+            // Trim leading zeroes and zero-chars
+            let size_str = String::from_utf8_lossy(&i.size);
+            let size_str = size_str.trim_end_matches('\0')
                 .trim_start_matches('0');
 
-            // If nothing remained, set to 0
-            if size_str.is_empty() {
-                size_str = "0";
-            }
-
             // From octal string to usize
-            let size = usize::from_str_radix(size_str, 8).unwrap();
+            let size = if size_str.is_empty() {
+                0
+            } else {
+                usize::from_str_radix(size_str, 8).unwrap()
+            };
 
             entities.push(Entity {
                 size,
@@ -203,11 +199,8 @@ impl TarFS {
         let matching_directories: Vec<_> = entities
             .iter()
             .filter_map(|entry| {
-                let cleaned_name = entry
-                    .name
-                    .clone()
-                    .trim_end_matches('/')
-                    .to_string();
+                let cleaned_name = entry.name.clone();
+                let cleaned_name = cleaned_name.trim_end_matches('/'); //.to_string();
 
                 if entry._type == Type::Dir && cleaned_name == cleaned_path {
                     Some(entry.name.clone())
@@ -258,11 +251,7 @@ impl TarFS {
         let matching_directories: Vec<_> = entities
             .iter()
             .filter_map(|entry| {
-                let cleaned_name = entry
-                    .name
-                    .clone()
-                    .trim_end_matches('/')
-                    .to_string();
+                let cleaned_name = entry.name.clone().trim_end_matches('/').to_string();
 
                 if entry._type == Type::Dir && cleaned_name == cleaned_path {
                     Some(entry.name.clone())
