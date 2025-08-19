@@ -169,8 +169,7 @@ impl TarFS {
 
             // Trim leading zeroes and zero-chars
             let size_str = String::from_utf8_lossy(&i.size);
-            let size_str = size_str.trim_end_matches('\0')
-                .trim_start_matches('0');
+            let size_str = size_str.trim_end_matches('\0').trim_start_matches('0');
 
             // From octal string to usize
             let size = if size_str.is_empty() {
@@ -196,37 +195,30 @@ impl TarFS {
         let cleaned_path = path.trim_end_matches('/').to_string();
 
         // Find directories (will always return zero or one element in Vec)
-        let matching_directories: Vec<_> = entities
+        let directory_full_name = entities
             .iter()
-            .filter_map(|entry| {
-                let cleaned_name = entry.name.clone();
-                let cleaned_name = cleaned_name.trim_end_matches('/'); //.to_string();
+            .find(|entry| {
+                let cleaned_name = entry.name.trim_end_matches('/');
 
-                if entry._type == Type::Dir && cleaned_name == cleaned_path {
-                    Some(entry.name.clone())
-                } else {
-                    None
-                }
+                entry._type == Type::Dir && cleaned_name == cleaned_path
             })
-            .collect();
+            .map(|x| x.name.clone());
 
-        // Get first element
-        let directory_full_name: Option<&String> = matching_directories.first();
-
-        if directory_full_name.is_none() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Directory not found",
-            ));
-        }
-
-        let directory_full_name: &String = directory_full_name.unwrap();
+        let directory_full_name = match directory_full_name {
+            Some(x) => x,
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Directory not found",
+                ))
+            }
+        };
 
         // If entity name starts with directory name, it's a child in that directory
         let mut result = entities
             .iter()
             .filter_map(|entry| {
-                if entry.name.starts_with(directory_full_name) {
+                if entry.name.starts_with(&directory_full_name) {
                     Some(entry.clone())
                 } else {
                     None
@@ -247,39 +239,34 @@ impl TarFS {
         // Remove trailing slashes
         let cleaned_path = path.trim_end_matches('/').to_string();
 
-        // Find directories (will always return zero or one element in Vec)
-        let matching_directories: Vec<_> = entities
+        // Find directory
+        let directory_full_name = entities
             .iter()
-            .filter_map(|entry| {
-                let cleaned_name = entry.name.clone().trim_end_matches('/').to_string();
+            .find(|entry| {
+                let cleaned_name = entry.name.trim_end_matches('/');
 
-                if entry._type == Type::Dir && cleaned_name == cleaned_path {
-                    Some(entry.name.clone())
-                } else {
-                    None
-                }
+                entry._type == Type::Dir && cleaned_name == cleaned_path
             })
-            .collect();
+            .map(|x| x.name.clone());
 
-        // Get first element
-        let directory_full_name: Option<&String> = matching_directories.first();
+        let directory_full_name = match directory_full_name {
+            Some(x) => x,
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Directory not found",
+                ))
+            }
+        };
 
-        if directory_full_name.is_none() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Directory not found",
-            ));
-        }
-
-        let directory_full_name: &String = directory_full_name.unwrap();
         let pathlen = directory_full_name.len();
 
         // If entity name starts with directory name, it's a child in that directory
         let mut result = entities
             .iter()
             .filter_map(|entry| {
-                if entry.name.starts_with(directory_full_name) {
-                    let remaining = &entry.name[pathlen..].trim_end_matches('/');
+                if entry.name.starts_with(&directory_full_name) {
+                    let remaining = entry.name[pathlen..].trim_end_matches('/');
                     let slash_count = remaining.chars().filter(|&c| c == '/').count();
 
                     if slash_count == 0 {
@@ -312,19 +299,12 @@ impl TarFS {
         &mut self,
         entity: &Entity,
         position: usize,
-        mut size: usize,
         output: &mut [u8],
     ) -> io::Result<usize> {
-        let end_position = position + size;
-
-        if end_position > entity.size {
-            size = end_position - position;
-        }
-
         self.device.seek(io::SeekFrom::Start(
             (entity.position + 512 + position) as u64,
         ))?;
-        self.device.read(&mut output[..size])
+        self.device.read(output)
     }
 
     pub fn read_file(
@@ -335,7 +315,7 @@ impl TarFS {
     ) -> io::Result<usize> {
         let entity = self.find_file(path)?;
 
-        self.read_file_by_entity(&entity, position, output.len(), output)
+        self.read_file_by_entity(&entity, position, output)
     }
 
     pub fn read_entire_file(&mut self, path: &str) -> io::Result<Vec<u8>> {
@@ -343,7 +323,7 @@ impl TarFS {
 
         let mut output = vec![0u8; entity.size];
 
-        let result = self.read_file_by_entity(&entity, 0, entity.size, &mut output);
+        let result = self.read_file_by_entity(&entity, 0, &mut output);
 
         match result {
             Ok(_) => Ok(output),
