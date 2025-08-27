@@ -9,7 +9,6 @@ use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::mem::size_of;
-use no_std_io::io::SeekFrom;
 
 #[cfg(feature = "builtin_devices")]
 pub mod file_device;
