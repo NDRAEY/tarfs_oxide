@@ -239,14 +239,23 @@ impl TarFS {
     }
 
     pub fn find_file(&mut self, path: &str) -> io::Result<Entity> {
-        match self
-            .list()
-            .into_iter()
-            .find(|entry| entry.as_ref().map(|x| x.name == path).unwrap_or_default())
-        {
-            Some(ent) => {
-                ent
-            },
+        match self.list().into_iter().find(|entry| {
+            entry
+                .as_ref()
+                .map(|x| {
+                    let exact_match = x.name == path;
+
+                    // For example `path = ./Sayori` (it's a folder)
+                    // It won't match `./Sayori/`, but I give it a chance to match against `./Sayori`
+                    if !exact_match && x.name.len() > 1 {
+                        return &x.name[..x.name.len() - 1] == path;
+                    }
+
+                    exact_match
+                })
+                .unwrap_or_default()
+        }) {
+            Some(ent) => ent,
             None => Err(io::Error::new(io::ErrorKind::NotFound, "File not found")),
         }
     }
@@ -292,3 +301,4 @@ impl TarFS {
             .map(|v| String::from_utf8_lossy(&v).into_owned())
     }
 }
+
