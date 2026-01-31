@@ -8,7 +8,10 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
-use core::mem::size_of;
+use zerocopy::FromBytes;
+use zerocopy::FromZeros;
+use zerocopy::Immutable;
+use zerocopy::IntoBytes;
 
 #[cfg(feature = "builtin_devices")]
 pub mod file_device;
@@ -29,6 +32,7 @@ pub const TARFS_ELEM_TYPE_PIPE: u8 = 54;
 pub const MAGIC: &[u8; 5] = b"ustar";
 
 #[repr(C)]
+#[derive(FromBytes, Immutable, IntoBytes)]
 pub struct RawEntity {
     pub(crate) name: [u8; 100],
     pub(crate) mode: [u8; 8],
@@ -47,13 +51,9 @@ pub struct RawEntity {
     pub(crate) version: [u8; 2],
 
     pub(crate) user: [u8; 32],
-    /// Имя владельца
     pub(crate) group: [u8; 32],
-    /// Имя группы
     pub(crate) device_nro_1: [u8; 8],
-    /// Основной номер устройства
     pub(crate) device_nro_2: [u8; 8],
-    /// Младший номер устройства
     pub(crate) prefix: [u8; 155],
 }
 
@@ -75,18 +75,6 @@ pub struct Entity {
     pub position: usize,
 }
 
-impl RawEntity {
-    /// Helper function that exposes ISO header as an array off bytes
-    pub const fn as_slice(&mut self) -> &[u8] {
-        unsafe { core::slice::from_raw_parts(self as *const Self as *const u8, size_of::<Self>()) }
-    }
-
-    /// Helper function that exposes ISO header as a mutable array off bytes
-    pub const fn as_mut_slice(&mut self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(self as *mut Self as *mut u8, size_of::<Self>()) }
-    }
-}
-
 pub trait Device: io::Read + io::Seek {}
 
 pub struct TarFS {
@@ -95,10 +83,9 @@ pub struct TarFS {
 
 impl TarFS {
     pub fn from_device(mut device: impl Device + 'static) -> Option<TarFS> {
-        let mut raw_header = unsafe { core::mem::zeroed::<RawEntity>() };
-        //let read_size = size_of::<RawEntity>();
+        let mut raw_header = RawEntity::new_zeroed();
 
-        let result = device.read(raw_header.as_mut_slice());
+        let result = device.read(raw_header.as_mut_bytes());
 
         if result.is_err() {
             return None;

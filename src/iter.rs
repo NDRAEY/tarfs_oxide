@@ -1,4 +1,6 @@
 use no_std_io::io::{self, SeekFrom};
+use zerocopy::FromZeros;
+use zerocopy::IntoBytes;
 
 use crate::{Entity, MAGIC, RawEntity, TarFS};
 
@@ -23,13 +25,13 @@ impl Iterator for EntryIter<'_> {
     type Item = io::Result<(usize, RawEntity)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut raw_header = unsafe { core::mem::zeroed::<RawEntity>() };
+        let mut raw_header = RawEntity::new_zeroed();
 
         if let Err(e) = self.fs.device.seek(SeekFrom::Start(self.position as _)) {
             return Some(Err(e));
         }
 
-        if let Err(e) = self.fs.device.read(raw_header.as_mut_slice()) {
+        if let Err(e) = self.fs.device.read(raw_header.as_mut_bytes()) {
             return Some(Err(e));
         }
 
