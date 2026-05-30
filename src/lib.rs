@@ -75,7 +75,7 @@ pub struct Entity {
     pub position: usize,
 }
 
-pub trait Device: io::Read + io::Seek {}
+pub trait Device: io::Read + io::Seek + Send + Sync {}
 
 pub struct TarFS {
     device: Box<dyn Device>,
